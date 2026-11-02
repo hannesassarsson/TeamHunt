@@ -11,6 +11,9 @@ import { SpeciesSelect } from "@/components/species";
 import { ChartTable, ChartTooltip, LegendItems, useChartColors } from "@/components/charts";
 import { fmt, startOfDayDaysAgo } from "@/lib/utils";
 import { speciesLabel } from "@shared/domain/species.ts";
+import { sunRelativeHistogram } from "@shared/domain/sun.ts";
+import { tierRank } from "@shared/domain/tiers.ts";
+import { useCameras } from "@/lib/hooks";
 
 interface SpeciesRow { species_code: string; camera_events: number; confirmed_events: number; probable_events: number; uncertain_events: number; observations: number; harvests: number; last_seen: string | null }
 interface HourRow { hour: number; camera_events: number; observations: number }
@@ -50,6 +53,29 @@ export default function Analytics() {
     },
   });
   const d = q.data;
+  const cameras = useCameras();
+  const sunQ = useQuery({
+    queryKey: ["analytics-sun", org?.id, days, species, minTier],
+    enabled: !!org,
+    queryFn: async () => {
+      let ce = supabase.from("camera_events").select("at, camera_id, species_code, tier_rank").eq("org_id", org!.id).gte("at", from).lt("at", to).gte("tier_rank", tierRank(minTier)).limit(10000);
+      let ob = supabase.from("observations").select("observed_at, lat, lon, species_code").eq("org_id", org!.id).gte("observed_at", from).lt("observed_at", to).not("lat", "is", null).limit(10000);
+      if (species) { ce = ce.eq("species_code", species); ob = ob.eq("species_code", species); }
+      const [a, b] = await Promise.all([ce, ob]);
+      return { events: unwrap(a) as { at: string; camera_id: string | null }[], obs: unwrap(b) as { observed_at: string; lat: number; lon: number }[] };
+    },
+  });
+  const sunHist = useMemo(() => {
+    if (!sunQ.data) return null;
+    const pos = new Map((cameras.data ?? []).filter((c) => c.lat != null).map((c) => [c.id, { lat: c.lat!, lon: c.lon! }]));
+    const located = [
+      ...sunQ.data.events.flatMap((e) => (e.camera_id && pos.has(e.camera_id) ? [{ at: e.at, ...pos.get(e.camera_id)! }] : [])),
+      ...sunQ.data.obs.map((o) => ({ at: o.observed_at, lat: o.lat, lon: o.lon })),
+    ];
+    const h = sunRelativeHistogram(located);
+    const label = (o: number) => `${o >= 0 ? "+" : "−"}${Math.abs(o) / 60 >= 1 ? `${Math.floor(Math.abs(o) / 60)}h` : ""}${Math.abs(o) % 60 ? `${Math.abs(o) % 60}m` : Math.abs(o) < 60 ? "0" : ""}`;
+    return { rows: h.buckets.map((b) => ({ ...b, label: label(b.offset) })), outside: h.outside, total: located.length, unlocated: sunQ.data.events.length - sunQ.data.events.filter((e) => e.camera_id && pos.has(e.camera_id)).length };
+  }, [sunQ.data, cameras.data]);
 
   const years = useMemo(() => [...new Set((d?.monthly ?? []).map((m) => m.year))].sort(), [d?.monthly]);
   const seasonal = useMemo(() => MONTHS.map((label, i) => {
@@ -175,6 +201,35 @@ export default function Analytics() {
                   </table>
                 </div>
               )}
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHeader title="Activity around sunrise and sunset" description="Camera events (cameras with a position) and observations, in 30-minute steps relative to the nearest sunrise or sunset" />
+            <CardBody>
+              {!sunHist || sunHist.total === 0 ? <p className="text-sm text-muted">Needs camera events from positioned cameras, or observations with GPS.</p> : tables ? (
+                <ChartTable columns={[{ key: "label", label: "Offset" }, { key: "sunrise", label: "Around sunrise" }, { key: "sunset", label: "Around sunset" }]} rows={sunHist.rows} />
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {(["sunrise", "sunset"] as const).map((k, i) => (
+                    <div key={k}>
+                      <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">{k === "sunrise" ? "Around sunrise" : "Around sunset"}</h4>
+                      <div className="h-44">
+                        <ResponsiveContainer>
+                          <BarChart data={sunHist.rows}>
+                            <CartesianGrid vertical={false} stroke={colors.grid} />
+                            <XAxis dataKey="label" {...axis} interval={1} />
+                            <YAxis allowDecimals={false} {...axis} width={30} />
+                            <Tooltip content={<ChartTooltip labelFormatter={(l) => `${l} from ${k}`} />} cursor={{ fill: colors.grid, opacity: 0.4 }} />
+                            <Bar dataKey={k} name="Events" fill={colors.series[i === 0 ? 3 : 1]} radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {sunHist && sunHist.total > 0 && <p className="mt-2 text-[11px] text-muted">{sunHist.total - sunHist.outside} of {sunHist.total} located events fall within ±3 h of sunrise or sunset.{sunHist.unlocated > 0 && ` ${sunHist.unlocated} camera events are excluded because the camera has no position.`}</p>}
             </CardBody>
           </Card>
 

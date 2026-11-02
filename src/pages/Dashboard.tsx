@@ -13,6 +13,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { TierBadge, SpeciesName } from "@/components/species";
 import { WeatherIcon, WindArrow, WeatherKindBadge } from "@/components/weather";
 import { ChartTooltip, useChartColors } from "@/components/charts";
+import { SunMoonCard } from "@/components/sun";
 import { cn, fmt, startOfDayDaysAgo } from "@/lib/utils";
 import { speciesLabel } from "@shared/domain/species.ts";
 import { windDirectionLabel, type WeatherSample } from "@shared/domain/weather.ts";
@@ -133,7 +134,7 @@ export default function Dashboard() {
                         </div>
                       ))}
                     </div>
-                    <div className="mt-3"><WeatherKindBadge kind="forecast" /></div>
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2"><WeatherKindBadge kind="forecast" /><SunMoonCard lat={anchor[1]} lon={anchor[0]} compact /></div>
                   </>
                 ) : <p className="text-sm text-muted">Weather unavailable.</p>}
               </CardBody>

@@ -13,6 +13,7 @@ import { Input, Select } from "@/components/ui/form";
 import { EmptyState, ErrorState, PageHeader, PageLoader, Segmented } from "@/components/ui/misc";
 import { WeatherIcon, WeatherKindBadge, WindArrow } from "@/components/weather";
 import { ChartTooltip, useChartColors } from "@/components/charts";
+import { SunMoonCard } from "@/components/sun";
 import { fmt, getStored, setStored } from "@/lib/utils";
 import { windDirectionLabel, downwindBearing, type WeatherSample } from "@shared/domain/weather.ts";
 
@@ -93,6 +94,10 @@ export default function Weather() {
                 </div>
               </Card>
             )}
+            <Card>
+              <CardHeader title="Sun & moon" description={mode === "history" ? day : "Today"} />
+              <CardBody><SunMoonCard lat={loc.lat} lon={loc.lon} day={mode === "history" ? day : undefined} /></CardBody>
+            </Card>
             <div className="grid gap-4 lg:grid-cols-2">
               <Card>
                 <CardHeader title="Temperature (°C)" />
