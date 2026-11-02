@@ -19,12 +19,15 @@ begin
   if v_org is null or not private.has_role(v_org, 'member') then
     raise exception 'Not allowed' using errcode = '42501';
   end if;
-  if exists (select 1 from public.jobs where dedupe_key = 'analyze:' || p_image and status in ('queued', 'running')) then
-    return; -- already scheduled
-  end if;
   update public.camera_images
   set status = 'pending', analysis_error = null, duplicate_of = null
   where id = p_image;
+  if exists (select 1 from public.jobs where dedupe_key = 'analyze:' || p_image and status = 'queued') then
+    -- Already scheduled: make sure the queued job runs as a re-analysis.
+    update public.jobs set payload = payload || '{"reanalyze": true}'::jsonb
+    where dedupe_key = 'analyze:' || p_image and status = 'queued';
+    return;
+  end if;
   delete from public.jobs where dedupe_key = 'analyze:' || p_image;
   perform private.enqueue('analyze_image', jsonb_build_object('image_id', p_image, 'reanalyze', true), '0', 'analyze:' || p_image);
 end $$;

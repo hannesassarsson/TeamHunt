@@ -105,5 +105,5 @@ export function coarseCoordinate(v: number, decimals = 2): number {
 }
 
 export function describeKind(kind: WeatherKind): string {
-  return kind === "forecast" ? "Forecast" : kind === "observed" ? "Observed (station)" : "Historical (model reanalysis)";
+  return kind === "forecast" ? "Forecast" : kind === "observed" ? "Observed (station)" : "Historical (modelled)";
 }

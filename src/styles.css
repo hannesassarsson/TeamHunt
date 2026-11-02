@@ -1,0 +1,99 @@
+@import "tailwindcss";
+@import "maplibre-gl/dist/maplibre-gl.css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Design tokens — modern Nordic: birch paper, spruce, lichen and ochre. */
+:root {
+  --bg: #f4f3ee;
+  --surface: #ffffff;
+  --surface-2: #eceae2;
+  --border: #dcd9cd;
+  --text: #17201c;
+  --muted: #5f6b64;
+  --primary: #24493f;
+  --primary-fg: #f4f3ee;
+  --accent: #b9802f;
+  --accent-soft: #f3e4c9;
+  --danger: #b4412f;
+  --success: #2f7a4f;
+  --warning: #b9802f;
+  --info: #3d6b8c;
+  --ring: #3f7a68;
+  --tier-confirmed: #2f7a4f;
+  --tier-probable: #b9802f;
+  --tier-uncertain: #6c7781;
+  /* Chart palette — validated (dataviz validate_palette.js): categorical slots in fixed order,
+     and a single-hue ordinal ramp for confidence tiers. */
+  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100;
+  --tier-chart-confirmed: #1c5cab; --tier-chart-probable: #3987e5; --tier-chart-uncertain: #86b6ef;
+  color-scheme: light;
+}
+.dark {
+  --bg: #0d1311;
+  --surface: #141c19;
+  --surface-2: #1b2521;
+  --border: #29352f;
+  --text: #e6ebe7;
+  --muted: #8d9a93;
+  --primary: #7fb3a0;
+  --primary-fg: #0d1311;
+  --accent: #d9a55b;
+  --accent-soft: #3a2e1b;
+  --danger: #e0715d;
+  --success: #6cc08f;
+  --warning: #d9a55b;
+  --info: #7fb0d4;
+  --ring: #7fb3a0;
+  --tier-confirmed: #6cc08f;
+  --tier-probable: #d9a55b;
+  --tier-uncertain: #9aa5ae;
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
+  --tier-chart-confirmed: #b7d3f6; --tier-chart-probable: #5598e7; --tier-chart-uncertain: #256abf;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-primary: var(--primary);
+  --color-primary-fg: var(--primary-fg);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-ring: var(--ring);
+  --color-tier-confirmed: var(--tier-confirmed);
+  --color-tier-probable: var(--tier-probable);
+  --color-tier-uncertain: var(--tier-uncertain);
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Manrope", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --animate-fade-in: fade-in 160ms ease-out;
+  --animate-slide-up: slide-up 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes fade-in { from { opacity: 0 } to { opacity: 1 } }
+@keyframes slide-up { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
+
+html, body, #root { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "cv11", "ss01", "tnum";
+}
+:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.font-display { font-family: var(--font-display); letter-spacing: -0.01em; }
+.tabular { font-variant-numeric: tabular-nums; }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+.maplibregl-ctrl-attrib { font-size: 10px; }
+.dark .maplibregl-ctrl-group { background: var(--surface); }
+.dark .maplibregl-ctrl-group button .maplibregl-ctrl-icon { filter: invert(1); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }

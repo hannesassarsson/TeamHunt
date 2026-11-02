@@ -13,6 +13,8 @@ export default defineConfig({
     },
   },
   build: {
+    // maplibre-gl (~1 MB) is isolated in its own chunk and only loaded by the lazy map route.
+    chunkSizeWarningLimit: 1100,
     rollupOptions: {
       output: {
         manualChunks(id) {

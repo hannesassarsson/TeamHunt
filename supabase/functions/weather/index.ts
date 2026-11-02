@@ -2,9 +2,10 @@
 // (~1 km) before they leave our infrastructure, and caches responses.
 //   GET /functions/v1/weather?lat=60.1&lon=15.2            -> forecast (MET Norway)
 //   GET /functions/v1/weather?lat=60.1&lon=15.2&at=ISO     -> sample for that time (historical model or forecast)
+//   GET /functions/v1/weather?lat=60.1&lon=15.2&day=YYYY-MM-DD -> hourly historical (modelled) samples for a past day
 import { serviceClient, userClient } from "../_shared/clients.ts";
 import { HttpError, json, serve } from "../_shared/http.ts";
-import { getForecast, weatherAt } from "../_shared/weather.ts";
+import { getForecast, getHistoricalDay, weatherAt } from "../_shared/weather.ts";
 
 const buckets = new Map<string, { tokens: number; at: number }>();
 function rateLimit(key: string, perMinute = 60) {
@@ -27,6 +28,12 @@ serve("weather", async (req) => {
     throw new HttpError(400, "lat and lon are required");
   }
   const db = serviceClient();
+  const day = url.searchParams.get("day");
+  if (day) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || new Date(`${day}T00:00:00Z`).getTime() > Date.now()) throw new HttpError(400, "day must be a past date (YYYY-MM-DD)");
+    if (new Date(`${day}T00:00:00Z`).getTime() < Date.UTC(1950, 0, 1)) throw new HttpError(400, "No data before 1950");
+    return json(req, { samples: await getHistoricalDay(db, lat, lon, day), attribution: "Weather data: Open-Meteo (CC BY 4.0), ERA5 reanalysis / model data" });
+  }
   const at = url.searchParams.get("at");
   if (at) {
     if (Number.isNaN(Date.parse(at))) throw new HttpError(400, "Invalid 'at' timestamp");
