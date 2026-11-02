@@ -54,4 +54,4 @@ jobs:
           deno-version: v2.x
       - run: deno check process-jobs/index.ts camera-ingest/index.ts weather/index.ts send-invitation/index.ts
       - run: deno lint
-      - run: deno test --allow-net=deno.land _shared/
+      - run: deno test --allow-net=deno.land

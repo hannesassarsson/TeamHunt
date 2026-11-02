@@ -4,7 +4,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { Images, Upload, Filter, Copy, ListChecks } from "lucide-react";
 import { supabase, unwrap } from "@/lib/supabase";
 import { useOrg } from "@/lib/org";
-import { useCameras, useSignedUrls } from "@/lib/hooks";
+import { useCameras, useSignedUrls, thumbOf } from "@/lib/hooks";
 import type { CameraImage, Detection } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Select, Checkbox } from "@/components/ui/form";
@@ -83,7 +83,7 @@ export default function Library() {
     }
     return m;
   }, [dets.data]);
-  const signed = useSignedUrls("camera-images", images.map((i) => i.storage_path));
+  const signed = useSignedUrls("camera-images", images.map(thumbOf));
   const cameraName = (id: string | null) => cameras.data?.find((c) => c.id === id)?.name ?? "Unassigned";
 
   const idx = openId ? ids.indexOf(openId) : -1;
@@ -131,7 +131,7 @@ export default function Library() {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
             {images.map((img) => {
               const d = best.get(img.id);
-              const url = signed.data?.[img.storage_path];
+              const url = signed.data?.[thumbOf(img)];
               return (
                 <button key={img.id} onClick={() => set("image", img.id)} className="group overflow-hidden rounded-xl border border-border bg-surface text-left transition hover:border-primary/60 hover:shadow-md">
                   <div className="relative aspect-[4/3] bg-surface-2">

@@ -6,7 +6,7 @@ import { ArrowLeft, KeyRound, MapPin, Pencil, Trash2, Upload, Copy } from "lucid
 import { toast } from "sonner";
 import { supabase, unwrap } from "@/lib/supabase";
 import { useOrg } from "@/lib/org";
-import { useAction, useCameras, useSignedUrls, cameraStatus } from "@/lib/hooks";
+import { useAction, useCameras, useSignedUrls, cameraStatus, thumbOf } from "@/lib/hooks";
 import type { CameraImage } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -44,7 +44,7 @@ export default function CameraDetail() {
     enabled: !!id,
     queryFn: async () => unwrap(await supabase.from("camera_images").select("*").eq("camera_id", id!).neq("status", "duplicate").order("captured_at", { ascending: false, nullsFirst: false }).limit(12)) as CameraImage[],
   });
-  const signed = useSignedUrls("camera-images", (recent.data ?? []).map((i) => i.storage_path));
+  const signed = useSignedUrls("camera-images", (recent.data ?? []).map(thumbOf));
 
   const byHour = useMemo(() => {
     const tz = org?.timezone ?? "Europe/Stockholm";
@@ -59,6 +59,12 @@ export default function CameraDetail() {
     return [...m.entries()].sort((a, b) => b[1] - a[1]);
   }, [events.data]);
 
+  const gpsSuggestion = useQuery({
+    queryKey: ["camera-gps", id],
+    enabled: !!id && !!cameras.data?.find((c) => c.id === id && c.lat == null),
+    queryFn: async () => unwrap(await supabase.from("camera_images").select("gps_lat, gps_lon").eq("camera_id", id!).not("gps_lat", "is", null).order("uploaded_at", { ascending: false }).limit(1).maybeSingle()) as { gps_lat: number; gps_lon: number } | null,
+  });
+  const applyGps = useAction(async (p: { lat: number; lon: number }) => unwrap(await supabase.from("cameras").update({ lat: p.lat, lon: p.lon }).eq("id", id!).select().single()), { success: "Camera position set from image GPS", invalidate: [["cameras"]] });
   const rotate = useAction(async () => unwrap(await supabase.rpc("rotate_camera_ingest_token", { p_camera: id })) as string, { invalidate: [["cameras"]], onSuccess: (t) => setToken(t) });
   const del = useAction(async () => unwrap(await supabase.from("cameras").delete().eq("id", id!).select("id")), { success: "Camera deleted", invalidate: [["cameras"]], onSuccess: () => navigate("/cameras") });
 
@@ -83,6 +89,13 @@ export default function CameraDetail() {
         </div>
       </div>
 
+      {camera.lat == null && gpsSuggestion.data && can("admin") && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-info/40 bg-info/10 px-4 py-3 text-sm">
+          <MapPin className="size-4 text-info" />
+          <span className="flex-1">This camera has no position, but its images contain GPS coordinates ({fmt.coord(gpsSuggestion.data.gps_lat, gpsSuggestion.data.gps_lon)}).</span>
+          <Button size="sm" onClick={() => applyGps.mutate({ lat: gpsSuggestion.data!.gps_lat, lon: gpsSuggestion.data!.gps_lon })} loading={applyGps.isPending}>Use this position</Button>
+        </div>
+      )}
       <div className="mb-4 flex justify-end"><Segmented value={days} onChange={setDays} options={[{ value: "7", label: "7 days" }, { value: "30", label: "30 days" }, { value: "365", label: "12 months" }]} /></div>
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
@@ -123,7 +136,7 @@ export default function CameraDetail() {
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
               {recent.data.map((i) => (
                 <button key={i.id} onClick={() => setOpenImage(i.id)} className="overflow-hidden rounded-lg border border-border">
-                  {signed.data?.[i.storage_path] ? <img src={signed.data[i.storage_path]} alt="" className="aspect-[4/3] w-full object-cover" loading="lazy" /> : <div className="aspect-[4/3] bg-surface-2" />}
+                  {signed.data?.[thumbOf(i)] ? <img src={signed.data[thumbOf(i)]} alt="" className="aspect-[4/3] w-full object-cover" loading="lazy" /> : <div className="aspect-[4/3] bg-surface-2" />}
                   <div className="px-1.5 py-1 text-left text-[10px] text-muted">{fmt.dateTime(i.captured_at ?? i.uploaded_at)}</div>
                 </button>
               ))}

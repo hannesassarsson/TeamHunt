@@ -12,7 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:db": "bash scripts/test-db.sh",
-    "test:functions": "cd supabase/functions && deno test --allow-net=deno.land _shared/ && deno check */index.ts && deno lint",
+    "test:functions": "cd supabase/functions && deno test --allow-net=deno.land && deno check */index.ts && deno lint",
     "check": "npm run lint && npm run typecheck && npm test && npm run build"
   },
   "dependencies": {

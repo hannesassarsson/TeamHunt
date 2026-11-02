@@ -90,6 +90,9 @@ export interface CameraImage {
   source: "upload" | "ingest";
   status: ImageStatus;
   duplicate_of: string | null;
+  thumb_path: string | null;
+  gps_lat: number | null;
+  gps_lon: number | null;
   has_animals: boolean | null;
   analysis_provider: string | null;
   analysis_model: string | null;

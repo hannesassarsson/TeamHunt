@@ -4,7 +4,7 @@ import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { AlertTriangle, Camera, Eye, Images, ListChecks, Map, Play, WifiOff, ArrowRight } from "lucide-react";
 import { supabase, unwrap, invokeFunction } from "@/lib/supabase";
 import { useOrg } from "@/lib/org";
-import { useAreas, useCameras, useSignedUrls, cameraStatus } from "@/lib/hooks";
+import { useAreas, useCameras, useSignedUrls, cameraStatus, thumbOf } from "@/lib/hooks";
 import { geometryCenter } from "@/lib/geo";
 import type { CameraImage, Detection, Observation } from "@/lib/types";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -44,7 +44,7 @@ export default function Dashboard() {
       };
     },
   });
-  const signed = useSignedUrls("camera-images", (d.data?.recent ?? []).map((i) => i.storage_path));
+  const signed = useSignedUrls("camera-images", (d.data?.recent ?? []).map(thumbOf));
   const offline = (cameras.data ?? []).filter((c) => cameraStatus(c) === "offline");
   const anchor = areas.data?.[0] ? geometryCenter(areas.data[0].geometry) : cameras.data?.find((c) => c.lat != null) ? [cameras.data.find((c) => c.lat != null)!.lon!, cameras.data.find((c) => c.lat != null)!.lat!] : null;
   const weather = useQuery({
@@ -99,7 +99,7 @@ export default function Dashboard() {
                       const det = d.data!.dets.filter((x) => x.image_id === img.id).sort((a, b) => (b.confidence ?? 1) - (a.confidence ?? 1))[0];
                       return (
                         <Link key={img.id} to={`/library?image=${img.id}`} className="overflow-hidden rounded-lg border border-border">
-                          {signed.data?.[img.storage_path] ? <img src={signed.data[img.storage_path]} alt="" loading="lazy" className="aspect-[4/3] w-full object-cover" /> : <div className="aspect-[4/3] bg-surface-2" />}
+                          {signed.data?.[thumbOf(img)] ? <img src={signed.data[thumbOf(img)]} alt="" loading="lazy" className="aspect-[4/3] w-full object-cover" /> : <div className="aspect-[4/3] bg-surface-2" />}
                           <div className="space-y-1 p-2">
                             <div className="flex items-center justify-between gap-1"><span className="truncate text-sm font-semibold">{det ? speciesLabel(det.species_code) : "Animal"}</span>{det && <TierBadge tier={det.tier} />}</div>
                             <div className="text-[11px] text-muted">{fmt.ago(img.captured_at ?? img.uploaded_at)}</div>

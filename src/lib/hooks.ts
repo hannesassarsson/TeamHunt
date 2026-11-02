@@ -87,6 +87,9 @@ export function useAction<TVars, TResult = unknown>(fn: (v: TVars) => Promise<TR
   });
 }
 
+/** Storage path to show in grids: the worker-generated thumbnail when available. */
+export const thumbOf = (img: { thumb_path?: string | null; storage_path: string }) => img.thumb_path ?? img.storage_path;
+
 /** Camera online state from last image time. */
 export function cameraStatus(c: Camera): "online" | "offline" | "never" | "inactive" {
   if (!c.active) return "inactive";

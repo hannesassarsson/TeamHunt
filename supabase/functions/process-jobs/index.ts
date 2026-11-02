@@ -5,7 +5,7 @@
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { serviceClient, env } from "../_shared/clients.ts";
 import { HttpError, json, log, safeEqual, serve } from "../_shared/http.ts";
-import { computePhash, exifDateTimeOriginal, zonedToUtc } from "../_shared/images.ts";
+import { analyzePixels, exifDateTimeOriginal, exifGps, zonedToUtc } from "../_shared/images.ts";
 import { getVisionProvider } from "../_shared/vision/index.ts";
 import { weatherAt } from "../_shared/weather.ts";
 import { sendEmail, sendPush, escapeHtml } from "../_shared/notify.ts";
@@ -69,6 +69,7 @@ function handle(db: SupabaseClient, job: Job): Promise<void> {
     case "dispatch_notification": return dispatchNotification(db, String(job.payload.notification_id));
     case "camera_health": return cameraHealth(db);
     case "daily_summary": return dailySummary(db, String(job.payload.date));
+    case "storage_cleanup": return storageCleanup(db, job.payload);
     default: throw new Error(`Unknown job type ${job.type}`);
   }
 }
@@ -103,9 +104,21 @@ async function analyzeImage(db: SupabaseClient, imageId: string, reanalyze: bool
     }
   }
   const capturedAt = (patch.captured_at as string | undefined) ?? img.captured_at ?? img.uploaded_at;
-  if (!img.phash || !img.width) {
-    const ph = await computePhash(bytes);
-    if (ph) Object.assign(patch, { phash: img.phash ?? ph.phash, width: img.width ?? ph.width, height: img.height ?? ph.height });
+  if (img.gps_lat == null) {
+    const gps = exifGps(bytes);
+    if (gps) Object.assign(patch, { gps_lat: gps.lat, gps_lon: gps.lon });
+  }
+  if (!img.phash || !img.width || !img.thumb_path) {
+    const px = await analyzePixels(bytes);
+    if (px) {
+      Object.assign(patch, { phash: img.phash ?? px.phash, width: img.width ?? px.width, height: img.height ?? px.height });
+      if (px.thumbnail && !img.thumb_path) {
+        const thumbPath = `${img.org_id}/thumbs/${img.id}.jpg`;
+        const { error: tErr } = await db.storage.from("camera-images").upload(thumbPath, px.thumbnail, { contentType: "image/jpeg", upsert: true });
+        if (tErr) log("warn", "thumbnail upload failed", { image: imageId, error: tErr.message });
+        else patch.thumb_path = thumbPath;
+      }
+    }
   }
   const phash = (patch.phash as string | undefined) ?? img.phash;
 
@@ -296,6 +309,16 @@ async function dispatchNotification(db: SupabaseClient, notificationId: string) 
     if (result.status === "failed" && attempts < 5) retry = true;
   }
   if (retry) throw new Error("Some deliveries failed; will retry");
+}
+
+async function storageCleanup(db: SupabaseClient, p: Record<string, unknown>) {
+  const bucket = String(p.bucket);
+  if (bucket !== "camera-images" && bucket !== "journal-photos") throw new Error(`Unexpected bucket ${bucket}`);
+  const paths = (Array.isArray(p.paths) ? p.paths : []).filter((x): x is string => typeof x === "string" && x.length > 0);
+  if (!paths.length) return;
+  // Removing a missing object is not an error, so this is safe to retry.
+  const { error } = await db.storage.from(bucket).remove(paths);
+  if (error) throw new Error(`Storage cleanup failed: ${error.message}`);
 }
 
 // ----------------------------------------------------------------------------- scheduled

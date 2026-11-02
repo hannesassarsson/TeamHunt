@@ -1,1 +1,5 @@
-{ "nodeModulesDir": "none", "lint": { "rules": { "exclude": ["no-explicit-any", "no-import-prefix"] } } }
+{
+  "nodeModulesDir": "none",
+  "lint": { "rules": { "exclude": ["no-explicit-any", "no-import-prefix"] } },
+  "test": { "include": ["_shared/**/*_test.ts"] }
+}

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Check, X, RefreshCw, Trash2, Plus, Tag, Camera as CameraIcon, Clock, Sparkles, AlertTriangle, Copy } from "lucide-react";
 import { supabase, unwrap } from "@/lib/supabase";
-import { useAction, useCameras, useSignedUrls } from "@/lib/hooks";
+import { useAction, useCameras, useSignedUrls, thumbOf } from "@/lib/hooks";
 import { useOrg } from "@/lib/org";
 import { useAuth } from "@/lib/auth";
 import type { CameraImage, Detection } from "@/lib/types";
@@ -46,9 +46,9 @@ export function ImageDetail({ imageId, onClose, onPrev, onNext, onSelect }: { im
   const history = useQuery({
     queryKey: ["image-history", img?.camera_id, imageId],
     enabled: !!img?.camera_id,
-    queryFn: async () => unwrap(await supabase.from("camera_images").select("id, storage_path, captured_at, uploaded_at").eq("camera_id", img!.camera_id!).eq("has_animals", true).neq("id", imageId!).neq("status", "duplicate").order("captured_at", { ascending: false }).limit(8)) as CameraImage[],
+    queryFn: async () => unwrap(await supabase.from("camera_images").select("id, storage_path, thumb_path, captured_at, uploaded_at").eq("camera_id", img!.camera_id!).eq("has_animals", true).neq("id", imageId!).neq("status", "duplicate").order("captured_at", { ascending: false }).limit(8)) as CameraImage[],
   });
-  const signed = useSignedUrls("camera-images", [img?.storage_path, ...(history.data ?? []).map((h) => h.storage_path)].filter(Boolean) as string[]);
+  const signed = useSignedUrls("camera-images", [img?.storage_path, ...(history.data ?? []).map(thumbOf)].filter(Boolean) as string[]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -70,7 +70,7 @@ export function ImageDetail({ imageId, onClose, onPrev, onNext, onSelect }: { im
   const removeTag = useAction(async (tag: string) => unwrap(await supabase.from("image_tags").delete().eq("image_id", img!.id).eq("tag", tag).select()), { invalidate: [["image-tags", imageId], ["tags"]] });
   const del = useAction(async () => {
     unwrap(await supabase.from("camera_images").delete().eq("id", img!.id).select("id"));
-    await supabase.storage.from("camera-images").remove([img!.storage_path]);
+    await supabase.storage.from("camera-images").remove([img!.storage_path, ...(img!.thumb_path ? [img!.thumb_path] : [])]);
   }, { success: "Image deleted", invalidate: [["images"], ["dashboard"]], onSuccess: onClose });
 
   const [newSpecies, setNewSpecies] = useState("moose");
@@ -110,6 +110,7 @@ export function ImageDetail({ imageId, onClose, onPrev, onNext, onSelect }: { im
               {img.width && <span>{img.width}×{img.height}</span>}
               <span className="inline-flex items-center gap-1"><Clock className="size-3" /> Time from {img.captured_at_source === "exif" ? "EXIF" : img.captured_at_source === "camera" ? "camera" : img.captured_at_source === "upload" ? "upload time (no EXIF)" : "–"}</span>
               <span>{img.source === "ingest" ? "Camera upload" : "Manual upload"}</span>
+              {img.gps_lat != null && <span>GPS {fmt.coord(img.gps_lat, img.gps_lon)}</span>}
             </div>
             {img.status === "duplicate" && (
               <div className="mt-3 flex items-center gap-2 rounded-lg bg-surface-2 p-3 text-sm">
@@ -123,7 +124,7 @@ export function ImageDetail({ imageId, onClose, onPrev, onNext, onSelect }: { im
                 <div className="flex gap-2 overflow-x-auto pb-1">
                   {history.data.map((h) => (
                     <button key={h.id} onClick={() => onSelect?.(h.id)} className="shrink-0 overflow-hidden rounded-lg border border-border">
-                      {signed.data?.[h.storage_path] ? <img src={signed.data[h.storage_path]} alt="" className="h-20 w-28 object-cover" loading="lazy" /> : <div className="h-20 w-28 bg-surface-2" />}
+                      {signed.data?.[thumbOf(h)] ? <img src={signed.data[thumbOf(h)]} alt="" className="h-20 w-28 object-cover" loading="lazy" /> : <div className="h-20 w-28 bg-surface-2" />}
                       <div className="px-1 py-0.5 text-[10px] text-muted">{fmt.dateTime(h.captured_at ?? h.uploaded_at)}</div>
                     </button>
                   ))}
