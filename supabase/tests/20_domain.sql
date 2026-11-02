@@ -163,7 +163,10 @@ end $$;
 select pg_temp.expect_error($$insert into public.observations (org_id, species_code) values ((select org from t), 'moose')$$, 'row-level security');
 
 select pg_temp.as_admin();
-do $$ begin assert (select count(*) from public.jobs where type = 'evaluate_event') = 1, 'observation event enqueued'; end $$;
+do $$ begin
+  assert (select count(*) from public.jobs where type = 'evaluate_event' and payload->>'event' = 'observation_created') = 1, 'observation event enqueued';
+  assert (select count(*) from public.jobs where type = 'evaluate_event' and payload->>'event' = 'harvest_created') = 1, 'harvest event enqueued';
+end $$;
 
 -- ---------------------------------------------------------------- analytics
 select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');

@@ -1,0 +1,25 @@
+# Supabase CLI configuration (local development). See docs/DEPLOYMENT.md.
+project_id = "nordhunt"
+
+[api]
+schemas = ["public"]
+
+[auth]
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173/**"]
+
+[auth.email]
+enable_confirmations = true
+
+# These functions authenticate callers themselves (worker secret / camera token).
+[functions.process-jobs]
+verify_jwt = false
+
+[functions.camera-ingest]
+verify_jwt = false
+
+[functions.weather]
+verify_jwt = true
+
+[functions.send-invitation]
+verify_jwt = true
