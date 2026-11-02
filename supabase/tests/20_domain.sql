@@ -120,7 +120,7 @@ do $$ begin
   assert (select tier from public.detections_view where species_code = 'fallow_deer') = 'confirmed';
 end $$;
 -- Members cannot alter AI confidence
-select pg_temp.expect_error($$update public.detections set confidence = 1 where species_code = 'moose'$$, 'read-only');
+select pg_temp.expect_error($$update public.detections set confidence = 1 where species_code = 'moose'$$, 'permission denied');
 -- Members cannot delete AI detections, only reject them
 delete from public.detections where species_code = 'moose';
 do $$ begin assert (select count(*) from public.detections where species_code = 'moose') = 2; end $$;

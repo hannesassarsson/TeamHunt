@@ -78,7 +78,7 @@ export function ImageDetail({ imageId, onClose, onPrev, onNext, onSelect }: { im
   const [newTag, setNewTag] = useState("");
   const [showBoxes, setShowBoxes] = useState(true);
   const canEdit = can("member");
-  const canDelete = can("admin") || (canEdit && img?.source === "upload" && (img as unknown as { uploaded_by?: string })?.uploaded_by === userId);
+  const canDelete = can("admin") || (canEdit && img?.source === "upload" && img?.uploaded_by === userId);
   const url = img ? signed.data?.[img.storage_path] : undefined;
   const visibleDets = (dets.data ?? []).filter((d) => d.review !== "rejected");
 

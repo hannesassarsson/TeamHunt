@@ -315,6 +315,8 @@ async function cameraHealth(db: SupabaseClient) {
 }
 
 async function dailySummary(db: SupabaseClient, date: string) {
+  const { data: pruned } = await db.rpc("prune_jobs");
+  if (pruned) log("info", "pruned finished jobs", { count: pruned });
   const { data: rules } = await db.from("notification_rules").select("org_id").eq("event", "daily_summary").eq("enabled", true);
   const orgIds = [...new Set((rules ?? []).map((r) => r.org_id))];
   for (const orgId of orgIds) {

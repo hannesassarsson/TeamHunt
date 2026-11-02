@@ -86,6 +86,7 @@ export interface CameraImage {
   captured_at: string | null;
   captured_at_source: "exif" | "camera" | "upload" | "manual" | null;
   uploaded_at: string;
+  uploaded_by: string | null;
   source: "upload" | "ingest";
   status: ImageStatus;
   duplicate_of: string | null;
