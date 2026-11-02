@@ -11,6 +11,7 @@ interface OrgState {
   org: Organization | null;
   role: Role | null;
   loading: boolean;
+  error: unknown;
   setOrgId: (id: string) => void;
   can: (min: Role) => boolean;
   refetch: () => void;
@@ -24,11 +25,19 @@ const OrgContext = createContext<OrgState | null>(null);
 export function OrgProvider({ children }: { children: ReactNode }) {
   const { userId } = useAuth();
   const [orgId, setOrgIdState] = useState<string | null>(() => getStored("nh-org", null));
+  // Memberships are cached per user on the device so the app keeps working offline in the field.
+  const cacheKey = `nh-memberships-${userId}`;
   const q = useQuery({
     queryKey: ["memberships", userId],
     enabled: !!userId,
-    queryFn: async () =>
-      unwrap(await supabase.from("memberships").select("org_id, user_id, role, organizations(*)").eq("user_id", userId!)) as unknown as Membership[],
+    networkMode: "offlineFirst",
+    initialData: () => (userId ? getStored<Membership[] | undefined>(cacheKey, undefined) : undefined),
+    initialDataUpdatedAt: 0,
+    queryFn: async () => {
+      const rows = unwrap(await supabase.from("memberships").select("org_id, user_id, role, organizations(*)").eq("user_id", userId!)) as unknown as Membership[];
+      setStored(cacheKey, rows);
+      return rows;
+    },
   });
   const memberships = useMemo(() => q.data ?? [], [q.data]);
   const current = memberships.find((m) => m.org_id === orgId) ?? memberships[0] ?? null;
@@ -41,7 +50,9 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     memberships,
     org: current?.organizations ?? null,
     role: current?.role ?? null,
-    loading: q.isLoading,
+    // Still "loading" while we have neither data nor a definitive answer (keeps offline users out of onboarding).
+    loading: q.data === undefined && !q.isError,
+    error: q.data === undefined && q.isError ? q.error : null,
     setOrgId: (id) => {
       setStored("nh-org", id);
       setOrgIdState(id);

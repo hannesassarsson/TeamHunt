@@ -12,6 +12,7 @@ import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { QuickObservation } from "./QuickObservation";
 import { Dialog } from "./ui/dialog";
+import { OfflineBanner } from "./OfflineBanner";
 import { Button } from "./ui/button";
 import { getOutbox, subscribeOutbox, syncOutbox } from "@/lib/outbox";
 
@@ -167,6 +168,7 @@ export function AppShell() {
           </NavLink>
           <NavLink to="/settings" className="rounded-md p-2 text-muted" aria-label="Settings"><Settings className="size-5" /></NavLink>
         </header>
+        <OfflineBanner />
         {pending > 0 && (
           <div className="flex items-center gap-2 bg-warning/15 px-4 py-1.5 text-xs font-medium text-warning">
             <CloudOff className="size-3.5" /> {pending} observation{pending > 1 ? "s" : ""} waiting to sync

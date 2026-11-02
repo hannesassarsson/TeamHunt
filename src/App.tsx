@@ -6,7 +6,7 @@ import { AuthProvider, useAuth } from "./lib/auth";
 import { OrgProvider, useOrg } from "./lib/org";
 import { isConfigured } from "./lib/supabase";
 import { AppShell } from "./components/AppShell";
-import { PageLoader } from "./components/ui/misc";
+import { ErrorState, PageLoader } from "./components/ui/misc";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LoginPage } from "./pages/Login";
 import { OnboardingPage } from "./pages/Onboarding";
@@ -42,10 +42,20 @@ function RequireAuth({ children }: { children: ReactNode }) {
 }
 
 function RequireOrg({ children }: { children: ReactNode }) {
-  const { org, loading } = useOrg();
-  if (loading) return <PageLoader />;
+  const { org, loading, error, refetch } = useOrg();
+  if (loading) return navigator.onLine ? <PageLoader /> : <OfflineNoCache />;
+  if (error) return <div className="mx-auto mt-24 max-w-md px-6"><ErrorState error={error} onRetry={refetch} /></div>;
   if (!org) return <Navigate to="/onboarding" replace />;
   return <>{children}</>;
+}
+
+function OfflineNoCache() {
+  return (
+    <div className="mx-auto mt-24 max-w-md px-6 text-center">
+      <h1 className="font-display text-xl font-bold">You're offline</h1>
+      <p className="mt-2 text-sm text-muted">Open NORDHUNT once while online on this device so your team can be loaded for offline use.</p>
+    </div>
+  );
 }
 
 export function App() {
