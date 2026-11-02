@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Check, X, RefreshCw, Trash2, Plus, Tag, Camera as CameraIcon, Clock, Sparkles, AlertTriangle, Copy } from "lucide-react";
@@ -23,6 +23,7 @@ const STATUS_LABEL: Record<string, { label: string; tone: "neutral" | "info" | "
 export const imageStatusBadge = (s: string) => <Badge tone={STATUS_LABEL[s]?.tone ?? "neutral"}>{STATUS_LABEL[s]?.label ?? s}</Badge>;
 
 export function ImageDetail({ imageId, onClose, onPrev, onNext, onSelect }: { imageId: string | null; onClose: () => void; onPrev?: () => void; onNext?: () => void; onSelect?: (id: string) => void }) {
+  const keyReview = useRef<((d: "confirmed" | "rejected") => void) | null>(null);
   const { can } = useOrg();
   const { userId } = useAuth();
   const cameras = useCameras();
@@ -52,9 +53,12 @@ export function ImageDetail({ imageId, onClose, onPrev, onNext, onSelect }: { im
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement)?.tagName?.match(/INPUT|SELECT|TEXTAREA/)) return;
+      if ((e.target as HTMLElement)?.tagName?.match(/INPUT|SELECT|TEXTAREA/) || e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === "ArrowLeft") onPrev?.();
       if (e.key === "ArrowRight") onNext?.();
+      // Rapid review: C confirms / R rejects the most confident unreviewed AI detection, then moves on.
+      const k = e.key.toLowerCase();
+      if ((k === "c" || k === "r") && keyReview.current) keyReview.current(k === "c" ? "confirmed" : "rejected");
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -62,6 +66,13 @@ export function ImageDetail({ imageId, onClose, onPrev, onNext, onSelect }: { im
 
   const inv = [["image", imageId], ["image-detections", imageId], ["images"], ["dashboard"], ["review-count"]];
   const review = useAction(async (p: { id: string; patch: Partial<Detection> }) => unwrap(await supabase.from("detections").update(p.patch).eq("id", p.id).select().single()), { invalidate: inv });
+  useEffect(() => {
+    keyReview.current = can("member") ? (decision) => {
+      const next = (dets.data ?? []).find((d) => d.source === "ai" && d.review === "unreviewed");
+      if (!next) return;
+      review.mutate({ id: next.id, patch: { review: decision } }, { onSuccess: () => { if (!(dets.data ?? []).some((d) => d.id !== next.id && d.source === "ai" && d.review === "unreviewed")) onNext?.(); } });
+    } : null;
+  });
   const addManual = useAction(async (p: { species: string; count: number | null }) => unwrap(await supabase.from("detections").insert({ org_id: img!.org_id, image_id: img!.id, species_code: p.species, count: p.count, source: "manual" }).select().single()), { success: "Detection added", invalidate: inv });
   const removeManual = useAction(async (id: string) => unwrap(await supabase.from("detections").delete().eq("id", id).select()), { invalidate: inv });
   const reanalyze = useAction(async () => unwrap(await supabase.rpc("reanalyze_image", { p_image: img!.id })), { success: "Queued for analysis", invalidate: inv });
@@ -110,6 +121,7 @@ export function ImageDetail({ imageId, onClose, onPrev, onNext, onSelect }: { im
               {img.width && <span>{img.width}×{img.height}</span>}
               <span className="inline-flex items-center gap-1"><Clock className="size-3" /> Time from {img.captured_at_source === "exif" ? "EXIF" : img.captured_at_source === "camera" ? "camera" : img.captured_at_source === "upload" ? "upload time (no EXIF)" : "–"}</span>
               <span>{img.source === "ingest" ? "Camera upload" : "Manual upload"}</span>
+              {canEdit && <span className="hidden sm:inline">Keys: ← → navigate · C confirm · R reject</span>}
               {img.gps_lat != null && <span>GPS {fmt.coord(img.gps_lat, img.gps_lon)}</span>}
             </div>
             {img.status === "duplicate" && (

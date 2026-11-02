@@ -1,13 +1,13 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { Images, Upload, Filter, Copy, ListChecks } from "lucide-react";
+import { Images, Upload, Filter, Copy, ListChecks, CheckSquare, Square, Check, X, Tag, Trash2 } from "lucide-react";
 import { supabase, unwrap } from "@/lib/supabase";
 import { useOrg } from "@/lib/org";
-import { useCameras, useSignedUrls, thumbOf } from "@/lib/hooks";
+import { useAction, useCameras, useSignedUrls, thumbOf } from "@/lib/hooks";
 import type { CameraImage, Detection } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { Select, Checkbox } from "@/components/ui/form";
+import { Input, Select, Checkbox } from "@/components/ui/form";
 import { EmptyState, ErrorState, PageHeader, Spinner, Segmented } from "@/components/ui/misc";
 import { SpeciesSelect, TierBadge } from "@/components/species";
 import { ImageDetail, imageStatusBadge } from "@/components/ImageDetail";
@@ -36,6 +36,25 @@ export default function Library() {
   const openId = params.get("image");
   const [uploadOpen, setUploadOpen] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkTag, setBulkTag] = useState("");
+  const toggleSel = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const exitSelect = () => { setSelecting(false); setSelected(new Set()); };
+  const bulkInv = [["images"], ["images-dets"], ["dashboard"], ["image"], ["image-detections"]];
+  const sel = () => [...selected];
+  const bulkReview = useAction(async (review: "confirmed" | "rejected") => {
+    unwrap(await supabase.from("detections").update({ review }).in("image_id", sel()).eq("source", "ai").eq("review", "unreviewed").select("id"));
+  }, { success: "Detections updated", invalidate: bulkInv, onSuccess: exitSelect });
+  const bulkCamera = useAction(async (cameraId: string) => {
+    unwrap(await supabase.from("camera_images").update({ camera_id: cameraId || null }).in("id", sel()).select("id"));
+  }, { success: "Camera assigned", invalidate: bulkInv, onSuccess: exitSelect });
+  const bulkAddTag = useAction(async (tag: string) => {
+    unwrap(await supabase.from("image_tags").upsert(sel().map((id) => ({ image_id: id, org_id: org!.id, tag })), { onConflict: "image_id,tag", ignoreDuplicates: true }).select("image_id"));
+  }, { success: "Tag added", invalidate: [["tags"], ["image-tags"]], onSuccess: () => { setBulkTag(""); exitSelect(); } });
+  const bulkDelete = useAction(async () => {
+    unwrap(await supabase.from("camera_images").delete().in("id", sel()).select("id"));
+  }, { success: "Images deleted", invalidate: bulkInv, onSuccess: exitSelect });
 
   const tags = useQuery({
     queryKey: ["tags", org?.id],
@@ -93,6 +112,7 @@ export default function Library() {
     <div className="mx-auto max-w-[1600px] p-4 sm:p-6">
       <PageHeader title="Camera images" description="Every trail camera image, analysed by AI and verified by your team."
         actions={<>
+          {can("member") && <Button variant={selecting ? "primary" : "outline"} onClick={() => (selecting ? exitSelect() : setSelecting(true))}><CheckSquare /> {selecting ? "Done" : "Select"}</Button>}
           <Button variant={f.status === "needs_review" ? "primary" : "outline"} onClick={() => set("status", f.status === "needs_review" ? null : "needs_review")}><ListChecks /> Review queue</Button>
           {can("member") && <Button onClick={() => setUploadOpen(true)}><Upload /> Upload</Button>}
         </>} />
@@ -133,7 +153,9 @@ export default function Library() {
               const d = best.get(img.id);
               const url = signed.data?.[thumbOf(img)];
               return (
-                <button key={img.id} onClick={() => set("image", img.id)} className="group overflow-hidden rounded-xl border border-border bg-surface text-left transition hover:border-primary/60 hover:shadow-md">
+                <button key={img.id} onClick={() => (selecting ? toggleSel(img.id) : set("image", img.id))} aria-pressed={selecting ? selected.has(img.id) : undefined}
+                  className={cn("group relative overflow-hidden rounded-xl border bg-surface text-left transition hover:border-primary/60 hover:shadow-md", selecting && selected.has(img.id) ? "border-primary ring-2 ring-primary" : "border-border")}>
+                  {selecting && <span className="absolute right-1.5 top-1.5 z-10 rounded bg-surface/90 p-0.5">{selected.has(img.id) ? <CheckSquare className="size-4 text-primary" /> : <Square className="size-4 text-muted" />}</span>}
                   <div className="relative aspect-[4/3] bg-surface-2">
                     {url && <img src={url} alt="" loading="lazy" className={cn("size-full object-cover transition group-hover:scale-[1.02]", img.status === "duplicate" && "opacity-60")} />}
                     <div className="absolute left-1.5 top-1.5">{img.status !== "analyzed" && imageStatusBadge(img.status)}</div>
@@ -152,6 +174,26 @@ export default function Library() {
           </div>
           {q.hasNextPage && <div className="mt-6 flex justify-center"><Button variant="outline" onClick={() => q.fetchNextPage()} loading={q.isFetchingNextPage}>Load more</Button></div>}
         </>
+      )}
+
+      {selecting && (
+        <div className="sticky bottom-3 z-20 mx-auto mt-4 flex max-w-4xl flex-wrap items-center gap-2 rounded-2xl border border-border bg-surface/95 p-3 shadow-2xl backdrop-blur">
+          <span className="text-sm font-semibold tabular">{selected.size} selected</span>
+          <Button size="sm" variant="ghost" onClick={() => setSelected(new Set(ids))}>All loaded</Button>
+          <div className="mx-1 h-6 w-px bg-border" />
+          <Button size="sm" variant="outline" disabled={!selected.size} loading={bulkReview.isPending && bulkReview.variables === "confirmed"} onClick={() => bulkReview.mutate("confirmed")} title="Confirm all unreviewed AI detections in the selected images"><Check className="text-success" /> Confirm AI</Button>
+          <Button size="sm" variant="outline" disabled={!selected.size} loading={bulkReview.isPending && bulkReview.variables === "rejected"} onClick={() => bulkReview.mutate("rejected")} title="Reject all unreviewed AI detections in the selected images"><X className="text-danger" /> Reject AI</Button>
+          <Select className="h-8 w-40 text-xs" value="" disabled={!selected.size} onChange={(e) => e.target.value && bulkCamera.mutate(e.target.value === "__none" ? "" : e.target.value)} aria-label="Assign camera">
+            <option value="">Assign camera…</option><option value="__none">Unassigned</option>
+            {cameras.data?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </Select>
+          <form className="flex gap-1" onSubmit={(e) => { e.preventDefault(); const t = bulkTag.trim().toLowerCase(); if (t && selected.size) bulkAddTag.mutate(t); }}>
+            <Input className="h-8 w-28 text-xs" placeholder="Tag" value={bulkTag} onChange={(e) => setBulkTag(e.target.value)} maxLength={32} pattern="[\w\-åäöæøÅÄÖÆØ ]{1,32}" aria-label="Tag to add" />
+            <Button size="sm" variant="outline" type="submit" disabled={!selected.size || !bulkTag.trim()} aria-label="Add tag"><Tag /></Button>
+          </form>
+          {can("admin") && <Button size="sm" variant="ghost" className="ml-auto text-danger" disabled={!selected.size} loading={bulkDelete.isPending}
+            onClick={() => { if (confirm(`Delete ${selected.size} image(s) permanently?`)) bulkDelete.mutate(); }}><Trash2 /> Delete</Button>}
+        </div>
       )}
 
       <ImageDetail imageId={openId} onClose={() => set("image", null)} onSelect={(id) => set("image", id)}
